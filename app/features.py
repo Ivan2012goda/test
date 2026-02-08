@@ -77,6 +77,15 @@ class KeywordResponder:
         data = json.loads(self.rules_file.read_text(encoding="utf-8"))
         return data.get("rules", [])
 
+    def save_rules(self, rules: list[dict[str, str]]) -> None:
+        payload = {"rules": rules}
+        self.rules_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def add_rule(self, keyword: str, reply: str) -> None:
+        rules = self.load_rules()
+        rules.append({"keyword": keyword, "reply": reply})
+        self.save_rules(rules)
+
     def match_reply(self, text: str) -> str | None:
         lowered = text.lower()
         for rule in self.load_rules():

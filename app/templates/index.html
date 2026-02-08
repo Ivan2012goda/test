@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feature Telegram Client</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="logo">FT</div>
+          <div>
+            <p class="name">Feature Client</p>
+            <p class="subtitle">Телеграм с фишками</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <p class="stat-title">Сообщений в базе</p>
+          <p class="stat-value">{{ message_count }}</p>
+          <p class="stat-hint">Обновлено {{ now.strftime("%H:%M") }}</p>
+        </div>
+        <div class="tips">
+          <p>Команды:</p>
+          <ul>
+            <li><code>/stats</code> — статистика</li>
+            <li><code>/schedule</code> — планирование</li>
+          </ul>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Автоответы по ключевым словам</h2>
+            <p>Управляйте быстрыми ответами для входящих сообщений.</p>
+          </div>
+          <div class="panel-body">
+            <form class="form" method="post" action="/rules">
+              <label>
+                Ключевое слово
+                <input type="text" name="keyword" placeholder="Например: прайс" required />
+              </label>
+              <label>
+                Ответ
+                <input type="text" name="reply" placeholder="Ответ на запрос" required />
+              </label>
+              <button type="submit">Добавить</button>
+            </form>
+            <div class="list">
+              {% if rules %}
+              {% for rule in rules %}
+              <div class="list-item">
+                <div>
+                  <p class="item-title">{{ rule.keyword }}</p>
+                  <p class="item-subtitle">{{ rule.reply }}</p>
+                </div>
+              </div>
+              {% endfor %}
+              {% else %}
+              <p class="empty">Пока нет правил. Добавьте первое!</p>
+              {% endif %}
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Планировщик сообщений</h2>
+            <p>Запланируйте отправку в нужный чат.</p>
+          </div>
+          <div class="panel-body">
+            <form class="form" method="post" action="/schedule">
+              <label>
+                Chat ID
+                <input type="number" name="chat_id" placeholder="123456789" required />
+              </label>
+              <label>
+                Минуты до отправки
+                <input type="number" name="minutes" min="1" value="10" required />
+              </label>
+              <label>
+                Текст сообщения
+                <input type="text" name="text" placeholder="Напоминание" required />
+              </label>
+              <button type="submit">Запланировать</button>
+            </form>
+            <div class="list">
+              {% if jobs %}
+              {% for job in jobs %}
+              <div class="list-item">
+                <div>
+                  <p class="item-title">Чат: {{ job.chat_id }}</p>
+                  <p class="item-subtitle">{{ job.text }}</p>
+                </div>
+                <div class="pill">{{ job.send_at.strftime("%d.%m %H:%M UTC") }}</div>
+              </div>
+              {% endfor %}
+              {% else %}
+              <p class="empty">Запланированных сообщений нет.</p>
+              {% endif %}
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

@@ -15,10 +15,14 @@ class AppConfig:
     keyword_rules_file: Path
 
 
-def load_config() -> AppConfig:
+def load_config(require_api: bool = True) -> AppConfig:
     load_dotenv()
-    api_id = int(os.environ["API_ID"])
-    api_hash = os.environ["API_HASH"]
+    api_id_value = os.environ.get("API_ID")
+    api_hash_value = os.environ.get("API_HASH")
+    if require_api and (not api_id_value or not api_hash_value):
+        raise RuntimeError("API_ID and API_HASH must be set to start the Telegram client.")
+    api_id = int(api_id_value or 0)
+    api_hash = api_hash_value or ""
     session_name = os.environ.get("SESSION_NAME", "feature_client")
     log_db_path = Path(os.environ.get("LOG_DB_PATH", "data/messages.db"))
     schedule_file = Path(os.environ.get("SCHEDULE_FILE", "data/schedule.json"))

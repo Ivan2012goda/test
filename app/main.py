@@ -1,10 +1,13 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+import uvicorn
 from telethon import TelegramClient, events
 
 from app.config import load_config
 from app.features import KeywordResponder, MessageLogger, Scheduler, ScheduledMessage
+from app.web import create_app
 
 
 async def schedule_loop(client: TelegramClient, scheduler: Scheduler) -> None:
@@ -29,6 +32,16 @@ async def main() -> None:
     scheduler = Scheduler(config.schedule_file)
 
     client = TelegramClient(config.session_name, config.api_id, config.api_hash)
+    base_dir = Path(__file__).resolve().parent
+    web_app = create_app(
+        logger=logger,
+        responder=responder,
+        scheduler=scheduler,
+        templates_path=base_dir / "templates",
+        static_path=base_dir / "static",
+    )
+    config_uvicorn = uvicorn.Config(web_app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config_uvicorn)
 
     @client.on(events.NewMessage())
     async def handler(event: events.NewMessage.Event) -> None:
@@ -61,7 +74,11 @@ async def main() -> None:
 
     async with client:
         await client.start()
-        await asyncio.gather(client.run_until_disconnected(), schedule_loop(client, scheduler))
+        await asyncio.gather(
+            client.run_until_disconnected(),
+            schedule_loop(client, scheduler),
+            server.serve(),
+        )
 
 
 if __name__ == "__main__":
