@@ -1,0 +1,90 @@
+// UIManager.cs.txt
+// ДОБАВКА К ТВОЕМУ СУЩЕСТВУЮЩЕМУ UIManager.cs.
+// Сам UIManager уже содержит меню Инвентарь/Кейсы и casePool со следующими именами:
+// White-and-black, White, Black, Gray-and-black, Gray, Red-and-black, Red,
+// Pink-and-black, Pink, Green-and-black, Green.
+// Этот блок предназначен для вставки ВНУТРЬ существующего класса UIManager.
+
+/*
+[Header("Скины оружия")]
+private string selectedWeaponSkin = "Gray";
+
+public void EquipWeaponSkinFromUI(string skinName)
+{
+    InventoryManager inventory = Object.FindAnyObjectByType<InventoryManager>();
+    if (inventory == null)
+    {
+        Debug.LogWarning("InventoryManager не найден.");
+        return;
+    }
+
+    if (!inventory.availableSkins.Contains(skinName))
+    {
+        ShowNotification("Скин отсутствует в инвентаре: " + skinName);
+        return;
+    }
+
+    selectedWeaponSkin = skinName;
+    inventory.EquipSkin(skinName);
+    ShowNotification("Надет скин: " + skinName);
+}
+
+public void ApplyCurrentWeaponSkin()
+{
+    InventoryManager inventory = Object.FindAnyObjectByType<InventoryManager>();
+    if (inventory != null)
+        FirstPersonController.ApplySkinToWeapons(inventory.GetEquippedSkin());
+}
+
+private void CreateWeaponSkinButton(Transform parent, string skinName, Vector2 position)
+{
+    GameObject buttonObject = new GameObject("Skin_" + skinName, typeof(RectTransform), typeof(Image), typeof(Button));
+    buttonObject.transform.SetParent(parent, false);
+
+    RectTransform rect = buttonObject.GetComponent<RectTransform>();
+    rect.sizeDelta = new Vector2(220f, 38f);
+    rect.anchoredPosition = position;
+
+    Image image = buttonObject.GetComponent<Image>();
+    image.color = GetSkinPreviewColor(skinName);
+
+    GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+    textObject.transform.SetParent(buttonObject.transform, false);
+    RectTransform textRect = textObject.GetComponent<RectTransform>();
+    textRect.anchorMin = Vector2.zero;
+    textRect.anchorMax = Vector2.one;
+    textRect.offsetMin = Vector2.zero;
+    textRect.offsetMax = Vector2.zero;
+
+    TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+    text.text = skinName;
+    text.alignment = TextAlignmentOptions.Center;
+    text.fontSize = 18;
+    text.color = Color.white;
+
+    buttonObject.GetComponent<Button>().onClick.AddListener(() => EquipWeaponSkinFromUI(skinName));
+}
+
+private Color GetSkinPreviewColor(string skinName)
+{
+    string baseName = skinName;
+    int split = baseName.IndexOf("-and-black", System.StringComparison.OrdinalIgnoreCase);
+    if (split >= 0) baseName = baseName.Substring(0, split);
+
+    switch (baseName.ToLowerInvariant())
+    {
+        case "white": return Color.white;
+        case "black": return Color.black;
+        case "gray": return Color.gray;
+        case "red": return Color.red;
+        case "pink": return new Color(1f, 0.41f, 0.71f);
+        case "green": return Color.green;
+        default: return Color.gray;
+    }
+}
+*/
+
+// ВАЖНО:
+// Эти методы намеренно не заменяют твой UIManager.cs целиком, потому что
+// оригинальный UIManager содержит остальное меню, HUD, кейсы, ботов и настройки.
+// Их нужно вставить внутрь твоего существующего класса UIManager.
