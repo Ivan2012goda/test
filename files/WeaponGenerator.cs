@@ -13,6 +13,7 @@ public class WeaponGenerator : MonoBehaviour
     public GameObject primaryWeaponObject; // AK 47
     public GameObject m16Object;           // M 16
     public Animator primaryAnimator;
+    public Animator m16Animator;
     public float primaryFireCooldown = 0.12f;
     private float nextPrimaryTime;
 
@@ -31,11 +32,15 @@ public class WeaponGenerator : MonoBehaviour
 
     private GameObject knifeInstance;
     private GameObject gunInstance;
+    private WeaponSwitcher weaponSwitcher;
 
     void Start()
     {
+        weaponSwitcher = GetComponent<WeaponSwitcher>();
+        if (weaponSwitcher == null)
+            weaponSwitcher = FindAnyObjectByType<WeaponSwitcher>();
+
         FindWeaponsInScene();
-        EquipGun();
     }
 
     void Update()
@@ -84,12 +89,12 @@ public class WeaponGenerator : MonoBehaviour
             if (t != null) m16Object = t.gameObject;
         }
 
-        // Каждый root оружия должен находиться в своей точке удержания.
-        // Это не мешает Animator менять localPosition во время анимации.
-        ResetWeaponRoot(knifeInstance, weaponHoldPoint);
-        ResetWeaponRoot(gunInstance, weaponHoldPoint2);
-        ResetWeaponRoot(primaryWeaponObject, weaponHoldPoint3);
-        ResetWeaponRoot(m16Object, weaponHoldPoint4);
+        // Не меняем родителя и не переносим оружие между HoldPoint.
+        // Только гарантируем исходный локальный трансформ корневого объекта.
+        ResetWeaponRoot(primaryWeaponObject);
+        ResetWeaponRoot(m16Object);
+        ResetWeaponRoot(gunInstance);
+        ResetWeaponRoot(knifeInstance);
 
         DisableColliders(knifeInstance);
         DisableColliders(gunInstance);
@@ -98,21 +103,23 @@ public class WeaponGenerator : MonoBehaviour
 
         if (knifeAnimator == null && knifeInstance != null)
             knifeAnimator = knifeInstance.GetComponentInChildren<Animator>(true);
+
         if (gunAnimator == null && gunInstance != null)
             gunAnimator = gunInstance.GetComponentInChildren<Animator>(true);
+
         if (primaryAnimator == null && primaryWeaponObject != null)
             primaryAnimator = primaryWeaponObject.GetComponentInChildren<Animator>(true);
+
+        if (m16Animator == null && m16Object != null)
+            m16Animator = m16Object.GetComponentInChildren<Animator>(true);
     }
 
-    void ResetWeaponRoot(GameObject weapon, Transform holdPoint)
+    void ResetWeaponRoot(GameObject weapon)
     {
-        if (weapon == null || holdPoint == null) return;
-
-        // Только корень. Внутренние детали модели не трогаем.
-        Transform t = weapon.transform;
-        t.localPosition = Vector3.zero;
-        t.localRotation = Quaternion.identity;
-        t.localScale = Vector3.one;
+        if (weapon == null) return;
+        weapon.transform.localPosition = Vector3.zero;
+        weapon.transform.localRotation = Quaternion.identity;
+        weapon.transform.localScale = Vector3.one;
     }
 
     void DisableColliders(GameObject obj)
@@ -133,7 +140,15 @@ public class WeaponGenerator : MonoBehaviour
     public void EquipPrimary()
     {
         UnequipAll();
-        if (primaryWeaponObject != null) primaryWeaponObject.SetActive(true);
+        if (weaponSwitcher != null)
+        {
+            GameObject selected = weaponSwitcher.GetSelectedPrimaryObject();
+            if (selected != null) selected.SetActive(true);
+        }
+        else if (primaryWeaponObject != null)
+        {
+            primaryWeaponObject.SetActive(true);
+        }
     }
 
     public void EquipM16()
@@ -159,10 +174,13 @@ public class WeaponGenerator : MonoBehaviour
         if (!IsPrimaryEquipped() || Time.time < nextPrimaryTime) return;
         nextPrimaryTime = Time.time + primaryFireCooldown;
 
-        if (primaryAnimator != null)
-            primaryAnimator.SetTrigger("Shoot");
+        bool isM16 = weaponSwitcher != null && weaponSwitcher.IsM16Selected();
+        Animator animator = isM16 ? m16Animator : primaryAnimator;
 
-        Debug.Log("[Weapon] AK 47 произвел выстрел!");
+        if (animator != null)
+            animator.SetTrigger("Shoot");
+
+        Debug.Log(isM16 ? "[Weapon] M 16 произвел выстрел!" : "[Weapon] AK 47 произвел выстрел!");
     }
 
     void TryAttackKnife()
@@ -204,7 +222,12 @@ public class WeaponGenerator : MonoBehaviour
         isGunAnimating = false;
     }
 
-    public bool IsPrimaryEquipped() => primaryWeaponObject != null && primaryWeaponObject.activeSelf;
+    public bool IsPrimaryEquipped()
+    {
+        GameObject selected = weaponSwitcher != null ? weaponSwitcher.GetSelectedPrimaryObject() : primaryWeaponObject;
+        return selected != null && selected.activeSelf;
+    }
+
     public bool IsM16Equipped() => m16Object != null && m16Object.activeSelf;
     public bool IsKnifeEquipped() => knifeInstance != null && knifeInstance.activeSelf;
     public bool IsGunEquipped() => gunInstance != null && gunInstance.activeSelf;
@@ -224,15 +247,20 @@ public class WeaponGenerator : MonoBehaviour
         Color color2 = parts.Length > 1 ? ParseColor(parts[1]) : color1;
         bool twoTone = parts.Length > 1;
 
-        // Скин применяется к каждому оружию отдельно.
-        // Поэтому при переключении он не "склеивает" AK 47 и M 16.
-        ApplySkinToWeapon(knifeInstance, color1, color2, twoTone, true);
-        ApplySkinToWeapon(gunInstance, color1, color2, twoTone, false);
-        ApplySkinToWeapon(primaryWeaponObject, color1, color2, twoTone, false);
-        ApplySkinToWeapon(m16Object, color1, color2, twoTone, false);
+        ApplySkinToWeapon(knifeInstance, color1, color2, twoTone, WeaponSkinType.Knife);
+        ApplySkinToWeapon(gunInstance, color1, color2, twoTone, WeaponSkinType.Deagle);
+        ApplySkinToWeapon(primaryWeaponObject, color1, color2, twoTone, WeaponSkinType.Primary);
+        ApplySkinToWeapon(m16Object, color1, color2, twoTone, WeaponSkinType.Primary);
     }
 
-    private void ApplySkinToWeapon(GameObject weapon, Color c1, Color c2, bool twoTone, bool isKnife)
+    enum WeaponSkinType
+    {
+        Knife,
+        Deagle,
+        Primary
+    }
+
+    private void ApplySkinToWeapon(GameObject weapon, Color c1, Color c2, bool twoTone, WeaponSkinType type)
     {
         if (weapon == null) return;
 
@@ -241,7 +269,6 @@ public class WeaponGenerator : MonoBehaviour
         {
             if (rend == null) continue;
 
-            // Не меняем sharedMaterial, иначе Unity изменит материал у всех копий модели.
             Material[] materials = rend.materials;
             for (int i = 0; i < materials.Length; i++)
             {
@@ -249,38 +276,39 @@ public class WeaponGenerator : MonoBehaviour
                 if (mat == null) continue;
 
                 string objectName = rend.gameObject.name.ToLowerInvariant();
-                Color targetColor = GetSkinPartColor(objectName, c1, c2, twoTone, isKnife);
+                Color targetColor = GetSkinPartColor(objectName, c1, c2, twoTone, type);
                 SetMaterialColor(mat, targetColor);
             }
             rend.materials = materials;
         }
     }
 
-    private Color GetSkinPartColor(string objectName, Color c1, Color c2, bool twoTone, bool isKnife)
+    private Color GetSkinPartColor(string objectName, Color c1, Color c2, bool twoTone, WeaponSkinType type)
     {
-        if (isKnife)
+        if (!twoTone) return c1;
+
+        if (type == WeaponSkinType.Knife)
         {
             if (objectName.Contains("blade")) return c1;
-            if (objectName.Contains("handle") || objectName.Contains("ручка")) return twoTone ? c2 : c1;
-            return twoTone ? c2 : c1;
+            if (objectName.Contains("handle") || objectName.Contains("ручка")) return c2;
+            return c2;
         }
 
-        // Для Deagle: всё с названием "верх" = первый цвет,
-        // всё с названием "ручка" = второй цвет.
-        if (objectName.Contains("верх") || objectName.Contains("slide")) return c1;
-        if (objectName.Contains("ручка") || objectName.Contains("grip") || objectName.Contains("handle"))
-            return twoTone ? c2 : c1;
+        if (type == WeaponSkinType.Deagle)
+        {
+            if (objectName.Contains("верх") || objectName.Contains("slide")) return c1;
+            if (objectName.Contains("ручка") || objectName.Contains("grip") || objectName.Contains("handle")) return c2;
+            return c1;
+        }
 
-        return twoTone ? c2 : c1;
+        return c1;
     }
 
     private void SetMaterialColor(Material mat, Color color)
     {
-        // Built-in Standard
         if (mat.HasProperty("_Color"))
             mat.SetColor("_Color", color);
 
-        // URP Lit / большинство современных Unity-шейдеров
         if (mat.HasProperty("_BaseColor"))
             mat.SetColor("_BaseColor", color);
     }
@@ -315,9 +343,9 @@ public class WeaponGenerator : MonoBehaviour
 
     public GameObject GetActiveWeapon()
     {
-        if (IsPrimaryEquipped()) return primaryWeaponObject;
-        if (IsM16Equipped()) return m16Object;
+        if (IsPrimaryEquipped()) return weaponSwitcher != null ? weaponSwitcher.GetSelectedPrimaryObject() : primaryWeaponObject;
         if (IsKnifeEquipped()) return knifeInstance;
-        return gunInstance;
+        if (IsGunEquipped()) return gunInstance;
+        return null;
     }
 }
