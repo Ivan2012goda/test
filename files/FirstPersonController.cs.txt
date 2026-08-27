@@ -1,0 +1,48 @@
+using UnityEngine;
+using System.Collections;
+
+[RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(PlayerCheats))]
+public class FirstPersonController : MonoBehaviour
+{
+    public bool isGamePaused = false;
+    public void SetGamePaused(bool paused){ isGamePaused=paused; Cursor.lockState=paused?CursorLockMode.None:CursorLockMode.Locked; Cursor.visible=paused; }
+    public void DeactivatePlayer(){ isAlive=false; Rigidbody rb=GetComponent<Rigidbody>(); if(rb!=null) rb.isKinematic=true; }
+    public void ActivatePlayer(){ isAlive=true; isActivated=true; CharacterController cc=GetComponent<CharacterController>(); if(cc!=null) cc.enabled=true; Rigidbody rb=GetComponent<Rigidbody>(); if(rb!=null) rb.isKinematic=false; }
+    public void ActivatePlayerAt(Vector3 spawnPosition){ CharacterController cc=GetComponent<CharacterController>(); if(cc!=null)cc.enabled=false; transform.position=spawnPosition; if(cc!=null)cc.enabled=true; Rigidbody rb=GetComponent<Rigidbody>(); if(rb!=null)rb.isKinematic=false; isActivated=true; isAlive=true; }
+
+    [Header("Точка спавна")] public Transform spawnPoint;
+    [Header("Движение")] public float walkSpeed=6f; public float gravity=-20f; public float jumpForce=5f;
+    [Header("Камера")] public Transform playerCamera; public float mouseSensitivity=2f; private float cameraPitch;
+    [Header("Оружие и Стрельба")] public Transform firePoint; public GameObject bulletPrefab; public float shootForce=60f; public float fireRate=.15f; private float nextFireTime; public int currentAmmo=30; public int maxAmmo=30; [HideInInspector] public float bulletDamage=25f;
+    [Header("Перезарядка")] public float reloadTime=5f; private bool isReloading; private float nextReloadAllowedTime;
+    [Header("Здоровье")] public float maxHealth=100f; [HideInInspector] public float currentHealth;
+
+    public bool cheatGodMode=>cheats!=null&&cheats.godMode; public bool cheatInfiniteAmmo=>cheats!=null&&cheats.infiniteAmmo; public bool cheatRapidFire=>cheats!=null&&cheats.rapidFire; public bool cheatBhop=>cheats!=null&&cheats.bhopEnabled;
+    private CharacterController controller; private PlayerCheats cheats; private Vector3 velocity; private bool isGrounded; private bool isActivated=false; private bool isAlive=true;
+
+    void Start(){ controller=GetComponent<CharacterController>(); cheats=GetComponent<PlayerCheats>(); currentHealth=maxHealth; if(playerCamera==null){Camera cam=GetComponentInChildren<Camera>();if(cam!=null)playerCamera=cam.transform;} Cursor.lockState=CursorLockMode.Locked;Cursor.visible=false; Vector3 p=spawnPoint!=null?spawnPoint.position:(GameObject.FindWithTag("Respawn")!=null?GameObject.FindWithTag("Respawn").transform.position:transform.position); ActivatePlayerAt(p); KillAllBotsOnMap(); }
+    public void KillAllBotsOnMap(){ foreach(GameObject b in GameObject.FindGameObjectsWithTag("Bot"))Destroy(b); foreach(GameObject e in GameObject.FindGameObjectsWithTag("Enemy"))Destroy(e); if(UIManager.Instance!=null)UIManager.Instance.ShowNotification("Все боты зачищены!"); }
+    void Update(){if(isGamePaused||!isActivated||!isAlive)return;HandleMouseLook();HandleMovement();HandleShooting();HandleReloading();}
+    void HandleMouseLook(){float x=Input.GetAxis("Mouse X")*mouseSensitivity,y=Input.GetAxis("Mouse Y")*mouseSensitivity;cameraPitch=Mathf.Clamp(cameraPitch-y,-90f,90f);if(playerCamera!=null)playerCamera.localRotation=Quaternion.Euler(cameraPitch,0,0);transform.Rotate(Vector3.up*x);}
+    void HandleMovement(){isGrounded=controller.isGrounded;if(isGrounded&&velocity.y<0)velocity.y=-2f;float x=Input.GetAxis("Horizontal"),z=Input.GetAxis("Vertical");Vector3 input=new Vector3(x,0,z);bool moving=input.sqrMagnitude>.01f;if(cheatBhop&&Input.GetKey(KeyCode.Space)){if(isGrounded){velocity.y=Mathf.Sqrt(jumpForce*-2f*gravity);if(moving&&cheats!=null)cheats.currentBhopSpeed=Mathf.Min(cheats.currentBhopSpeed*cheats.bhopAcceleration,cheats.maxBhopSpeed);}}else{if(isGrounded&&(Input.GetButtonDown("Jump")||Input.GetKeyDown(KeyCode.Space)))velocity.y=Mathf.Sqrt(jumpForce*-2f*gravity);if(cheats!=null)cheats.currentBhopSpeed=walkSpeed;}float speed=cheats!=null?cheats.currentBhopSpeed:walkSpeed;if(!moving)speed=0;Vector3 move=(transform.right*x+transform.forward*z)*speed;velocity.x=move.x;velocity.z=move.z;velocity.y+=gravity*Time.deltaTime;controller.Move(velocity*Time.deltaTime);}
+    void HandleShooting(){if(isReloading)return;KnifeSystem knife=GetComponent<KnifeSystem>();if(knife!=null&&knife.isKnifeEquipped)return;float rate=cheatRapidFire?.005f:fireRate;if(Input.GetButton("Fire1")&&Time.time>=nextFireTime){if(currentAmmo>0||cheatInfiniteAmmo){Shoot();nextFireTime=Time.time+rate;if(!cheatInfiniteAmmo)currentAmmo--;}else if(Time.time>=nextReloadAllowedTime&&!isReloading)StartCoroutine(ReloadRoutine());}}
+    void HandleReloading(){if(Input.GetKeyDown(KeyCode.R)&&!isReloading){if(Time.time<nextReloadAllowedTime)return;if(currentAmmo<maxAmmo)StartCoroutine(ReloadRoutine());}}
+    IEnumerator ReloadRoutine(){isReloading=true;if(UIManager.Instance!=null)UIManager.Instance.ShowNotification("Перезарядка...");yield return new WaitForSeconds(reloadTime);currentAmmo=maxAmmo;isReloading=false;nextReloadAllowedTime=Time.time+.2f;if(UIManager.Instance!=null)UIManager.Instance.ShowNotification("Готово!");}
+    void Shoot(){Vector3 pos=firePoint!=null?firePoint.position:(playerCamera.position+playerCamera.forward*.6f);Camera cam=playerCamera!=null?playerCamera.GetComponent<Camera>():null;Vector3 target;if(cam!=null){Ray ray=cam.ViewportPointToRay(new Vector3(.5f,.5f,0));target=Physics.Raycast(ray,out RaycastHit hit,100f)?hit.point:ray.GetPoint(100f);}else target=pos+playerCamera.forward*100f;Vector3 dir=(target-pos).normalized;GameObject bullet;if(bulletPrefab!=null)bullet=Instantiate(bulletPrefab,pos,Quaternion.LookRotation(dir));else{bullet=GameObject.CreatePrimitive(PrimitiveType.Sphere);bullet.transform.position=pos;bullet.transform.rotation=Quaternion.LookRotation(dir);bullet.transform.localScale=Vector3.one*.2f;Destroy(bullet,3f);}bullet.tag="Bullet";Collider col=bullet.GetComponent<Collider>();if(col!=null){col.isTrigger=true;if(controller!=null)Physics.IgnoreCollision(col,controller);}Rigidbody rb=bullet.GetComponent<Rigidbody>();if(rb==null)rb=bullet.AddComponent<Rigidbody>();rb.useGravity=false;rb.velocity=dir*shootForce;BulletHitHandler h=bullet.AddComponent<BulletHitHandler>();h.damage=bulletDamage;}
+    public class BulletHitHandler:MonoBehaviour{[HideInInspector]public float damage=25f;void OnTriggerEnter(Collider o){if(o.CompareTag("Player")||o.CompareTag("Bullet"))return;SimpleBot b=o.GetComponent<SimpleBot>();if(b!=null)b.TakeDamage(damage);Destroy(gameObject);}}
+    public void TakeDamage(float amount){if(cheatGodMode)return;currentHealth-=amount;if(currentHealth<=0&&isAlive)StartCoroutine(DieAndRespawnRoutine());}
+    IEnumerator DieAndRespawnRoutine(){isAlive=false;DeactivatePlayer();if(UIManager.Instance!=null)UIManager.Instance.ShowNotification("УБИТ! Возрождение через 3 сек...");yield return new WaitForSeconds(3f);currentHealth=maxHealth;currentAmmo=maxAmmo;isReloading=false;ActivatePlayerAt(spawnPoint!=null?spawnPoint.position:new Vector3(Random.Range(-12f,12f),1f,Random.Range(-12f,12f)));if(UIManager.Instance!=null)UIManager.Instance.ShowNotification("Возродился в бою!");}
+
+    // Система окраски оружия использует РОВНО твои пути и имена объектов.
+    public static void ApplySkinToWeapons(string skinName){
+        Transform m9=FindWeapon("player/Main camera/WeaponHoldPoint/m9_bayonet");
+        Transform deagle=FindWeapon("player/Main camera/WeaponHoldPoint2/Deagle");
+        string baseName=skinName??"Gray";int split=baseName.IndexOf("-and-black",System.StringComparison.OrdinalIgnoreCase);bool two=split>=0;if(two)baseName=baseName.Substring(0,split);Color color=SkinColor(baseName);
+        if(m9!=null)foreach(Renderer r in m9.GetComponentsInChildren<Renderer>(true)){string n=r.gameObject.name.ToLowerInvariant();SetRendererColor(r,(two&&(n=="handle"||n=="handle.001"))?Color.black:color);}
+        if(deagle!=null)foreach(Renderer r in deagle.GetComponentsInChildren<Renderer>(true)){string n=r.gameObject.name.ToLowerInvariant();SetRendererColor(r,(two&&n.Contains("ручка"))?Color.black:color);}
+    }
+    static Transform FindWeapon(string path){GameObject root=GameObject.Find("player");return root==null?null:root.transform.Find(path.Substring("player/".Length));}
+    static Color SkinColor(string n){switch((n??"Gray").ToLowerInvariant()){case "white":return Color.white;case "black":return Color.black;case "red":return Color.red;case "pink":return new Color(1f,.41f,.71f);case "green":return Color.green;default:return Color.gray;}}
+    static void SetRendererColor(Renderer r,Color c){foreach(Material m in r.materials){if(m==null)continue;if(m.HasProperty("_BaseColor"))m.SetColor("_BaseColor",c);else if(m.HasProperty("_Color"))m.SetColor("_Color",c);}}
+}
