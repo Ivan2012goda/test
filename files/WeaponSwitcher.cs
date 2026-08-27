@@ -5,10 +5,10 @@ using TMPro;
 public class WeaponSwitcher : MonoBehaviour
 {
     [Header("🎯 Оружие в Main Camera")]
-    public GameObject primaryObject; // WeaponHoldPoint3/AK 47
-    public GameObject gunObject;     // WeaponHoldPoint2/Deagle
-    public GameObject knifeObject;   // WeaponHoldPoint/m9_bayonet
-    public GameObject secondaryPrimaryObject; // WeaponHoldPoint4/M 16
+    public GameObject primaryObject;              // WeaponHoldPoint3/AK 47
+    public GameObject gunObject;                  // WeaponHoldPoint2/Deagle
+    public GameObject knifeObject;                // WeaponHoldPoint/m9_bayonet
+    public GameObject secondaryPrimaryObject;     // WeaponHoldPoint4/M 16
 
     [Header("🎮 Клавиши")]
     public KeyCode primaryKey = KeyCode.Alpha1;
@@ -16,17 +16,22 @@ public class WeaponSwitcher : MonoBehaviour
     public KeyCode knifeKey = KeyCode.Alpha3;
     public KeyCode buyMenuKey = KeyCode.B;
 
-    [Header("🛒 Меню выбора оружия")]
+    [Header("🛒 Выбор основного оружия")]
     public bool createBuyMenu = true;
     public string primaryWeaponName = "AK 47";
+    public string secondaryPrimaryWeaponName = "M 16";
     public string gunWeaponName = "Deagle";
     public string knifeWeaponName = "m9_bayonet";
 
     [HideInInspector] public bool isKnifeEquipped;
     [HideInInspector] public int currentSlot = 2;
 
+    // true = AK 47, false = M 16
+    [SerializeField] private bool ak47Selected = true;
+
     private GameObject buyMenu;
     private Canvas menuCanvas;
+    private TextMeshProUGUI selectedWeaponText;
 
     void Start()
     {
@@ -84,15 +89,36 @@ public class WeaponSwitcher : MonoBehaviour
             if (t != null) secondaryPrimaryObject = t.gameObject;
         }
 
+        // Оставляем каждое оружие строго в своей WeaponHoldPoint.
+        ResetWeaponRoot(primaryObject);
+        ResetWeaponRoot(secondaryPrimaryObject);
+        ResetWeaponRoot(gunObject);
+        ResetWeaponRoot(knifeObject);
+
         HideAllWeapons();
     }
+
+    void ResetWeaponRoot(GameObject weapon)
+    {
+        if (weapon == null) return;
+        weapon.transform.localPosition = Vector3.zero;
+        weapon.transform.localRotation = Quaternion.identity;
+        weapon.transform.localScale = Vector3.one;
+    }
+
+    // =========================================================
+    // СЛОТЫ: 1 = AK/M16, 2 = Deagle, 3 = нож
+    // =========================================================
 
     public void EquipPrimary()
     {
         currentSlot = 1;
         isKnifeEquipped = false;
         HideAllWeapons();
-        if (primaryObject != null) primaryObject.SetActive(true);
+
+        GameObject selected = GetSelectedPrimaryObject();
+        if (selected != null) selected.SetActive(true);
+
         CloseBuyMenu();
     }
 
@@ -128,16 +154,69 @@ public class WeaponSwitcher : MonoBehaviour
         isKnifeEquipped = false;
     }
 
-    public GameObject GetActiveWeapon()
+    // =========================================================
+    // ВЫБОР ОСНОВНОГО: AK 47 ИЛИ M 16
+    // =========================================================
+
+    public void SelectAK47()
     {
-        if (currentSlot == 1) return primaryObject;
-        if (currentSlot == 2) return gunObject;
-        return knifeObject;
+        ak47Selected = true;
+        UpdateBuyMenuText();
+        if (currentSlot == 1) EquipPrimary();
     }
 
-    public bool IsPrimaryEquipped() => currentSlot == 1 && primaryObject != null && primaryObject.activeSelf;
-    public bool IsGunEquipped() => currentSlot == 2 && gunObject != null && gunObject.activeSelf;
-    public bool IsKnifeEquipped() => currentSlot == 3 && knifeObject != null && knifeObject.activeSelf;
+    public void SelectM16()
+    {
+        ak47Selected = false;
+        UpdateBuyMenuText();
+        if (currentSlot == 1) EquipPrimary();
+    }
+
+    public bool IsAK47Selected() => ak47Selected;
+    public bool IsM16Selected() => !ak47Selected;
+
+    public GameObject GetSelectedPrimaryObject()
+    {
+        return ak47Selected ? primaryObject : secondaryPrimaryObject;
+    }
+
+    public string GetSelectedPrimaryName()
+    {
+        return ak47Selected ? primaryWeaponName : secondaryPrimaryWeaponName;
+    }
+
+    public GameObject GetActiveWeapon()
+    {
+        if (currentSlot == 1) return GetSelectedPrimaryObject();
+        if (currentSlot == 2) return gunObject;
+        if (currentSlot == 3) return knifeObject;
+        return null;
+    }
+
+    public bool IsPrimaryEquipped()
+    {
+        GameObject selected = GetSelectedPrimaryObject();
+        return currentSlot == 1 && selected != null && selected.activeSelf;
+    }
+
+    public bool IsGunEquipped()
+    {
+        return currentSlot == 2 && gunObject != null && gunObject.activeSelf;
+    }
+
+    public bool IsKnifeEquipped()
+    {
+        return currentSlot == 3 && knifeObject != null && knifeObject.activeSelf;
+    }
+
+    public bool IsM16Equipped()
+    {
+        return currentSlot == 1 && secondaryPrimaryObject != null && secondaryPrimaryObject.activeSelf;
+    }
+
+    // =========================================================
+    // МЕНЮ НА B
+    // =========================================================
 
     void CreateBuyMenu()
     {
@@ -159,14 +238,19 @@ public class WeaponSwitcher : MonoBehaviour
         menuRect.anchorMin = new Vector2(0.5f, 0.5f);
         menuRect.anchorMax = new Vector2(0.5f, 0.5f);
         menuRect.pivot = new Vector2(0.5f, 0.5f);
-        menuRect.sizeDelta = new Vector2(430, 300);
+        menuRect.sizeDelta = new Vector2(500, 360);
         menuRect.anchoredPosition = Vector2.zero;
-        buyMenu.GetComponent<Image>().color = new Color(0.035f, 0.04f, 0.055f, 0.97f);
+        buyMenu.GetComponent<Image>().color = new Color(0.035f, 0.04f, 0.055f, 0.98f);
 
-        CreateMenuTitle("ВЫБОР ОРУЖИЯ\nB — закрыть", new Vector2(0, 105));
-        CreateWeaponButton("1   " + primaryWeaponName, new Vector2(0, 45), EquipPrimary);
-        CreateWeaponButton("2   " + gunWeaponName, new Vector2(0, -20), EquipGun);
-        CreateWeaponButton("3   " + knifeWeaponName, new Vector2(0, -85), EquipKnife);
+        CreateMenuTitle("ВЫБОР ОСНОВНОГО ОРУЖИЯ", new Vector2(0, 135));
+        selectedWeaponText = CreateMenuInfo("Выбрано: " + GetSelectedPrimaryName(), new Vector2(0, 95));
+
+        CreateWeaponButton("AK 47", new Vector2(0, 35), SelectAK47);
+        CreateWeaponButton("M 16", new Vector2(0, -30), SelectM16);
+
+        CreateMenuInfo("1 — основное    2 — Deagle    3 — нож", new Vector2(0, -100));
+        CreateWeaponButton("ЗАКРЫТЬ", new Vector2(0, -145), CloseBuyMenu);
+
         buyMenu.SetActive(false);
     }
 
@@ -175,14 +259,33 @@ public class WeaponSwitcher : MonoBehaviour
         GameObject title = new GameObject("Title", typeof(RectTransform), typeof(TextMeshProUGUI));
         title.transform.SetParent(buyMenu.transform, false);
         RectTransform rect = title.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(400, 60);
+        rect.sizeDelta = new Vector2(450, 60);
         rect.anchoredPosition = position;
+
         TextMeshProUGUI tmp = title.GetComponent<TextMeshProUGUI>();
         tmp.text = text;
-        tmp.fontSize = 22;
+        tmp.fontSize = 24;
+        tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = Color.white;
         tmp.raycastTarget = false;
+    }
+
+    TextMeshProUGUI CreateMenuInfo(string text, Vector2 position)
+    {
+        GameObject info = new GameObject("Info", typeof(RectTransform), typeof(TextMeshProUGUI));
+        info.transform.SetParent(buyMenu.transform, false);
+        RectTransform rect = info.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(450, 35);
+        rect.anchoredPosition = position;
+
+        TextMeshProUGUI tmp = info.GetComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = 14;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = new Color(0.75f, 0.75f, 0.78f);
+        tmp.raycastTarget = false;
+        return tmp;
     }
 
     void CreateWeaponButton(string text, Vector2 position, UnityEngine.Events.UnityAction action)
@@ -210,12 +313,18 @@ public class WeaponSwitcher : MonoBehaviour
         tmp.raycastTarget = false;
     }
 
+    void UpdateBuyMenuText()
+    {
+        if (selectedWeaponText != null)
+            selectedWeaponText.text = "Выбрано: " + GetSelectedPrimaryName();
+    }
+
     public void ToggleBuyMenu()
     {
         if (buyMenu == null)
         {
             CreateBuyMenu();
-            return;
+            if (buyMenu == null) return;
         }
 
         bool open = !buyMenu.activeSelf;
@@ -223,6 +332,7 @@ public class WeaponSwitcher : MonoBehaviour
 
         if (open)
         {
+            UpdateBuyMenuText();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
@@ -235,7 +345,8 @@ public class WeaponSwitcher : MonoBehaviour
 
     public void CloseBuyMenu()
     {
-        if (buyMenu != null && buyMenu.activeSelf)
-            buyMenu.SetActive(false);
+        if (buyMenu != null) buyMenu.SetActive(false);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 }
